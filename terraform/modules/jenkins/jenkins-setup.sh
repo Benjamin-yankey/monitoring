@@ -1,73 +1,95 @@
 #!/bin/bash
 set -e
-
 exec > >(tee /var/log/jenkins-setup.log)
 exec 2>&1
 
-echo "Starting Jenkins setup at $(date)"
+echo "Starting Jenkins Docker setup at $(date)"
 
-yum update -y
+# Install Docker
+sudo yum update -y
+sudo yum install -y docker git
+sudo systemctl start docker
+sudo systemctl enable docker
+sudo usermod -a -G docker ec2-user
 
-echo "Installing AWS CLI..."
-yum install -y aws-cli
+# Create Docker network
+sudo docker network create jenkins || true
 
-echo "Installing Docker..."
-amazon-linux-extras install docker -y
-systemctl start docker
-systemctl enable docker
-usermod -a -G docker ec2-user
+# Run Docker-in-Docker container
+sudo docker run --name jenkins-docker --rm --detach \
+  --privileged --network jenkins --network-alias docker \
+  --env DOCKER_TLS_CERTDIR=/certs \
+  --volume jenkins-docker-certs:/certs/client \
+  --volume jenkins-data:/var/jenkins_home \
+  --publish 2376:2376 \
+  docker:dind --storage-driver overlay2
 
-echo "Installing Java..."
-amazon-linux-extras install java-openjdk11 -y
-java -version
+# Build custom Jenkins image with Docker CLI
+echo "Building custom Jenkins image with Docker CLI..."
+sudo docker build -t jenkins-with-docker - <<'EOF'
+FROM jenkins/jenkins:2.541.2-jdk21
+USER root
 
-echo "Adding Jenkins repository..."
-wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
-rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+# Install Docker CLI
+RUN apt-get update && \
+    apt-get install -y docker.io && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-echo "Installing Jenkins..."
-yum install -y jenkins
-usermod -a -G docker jenkins
+# Install Jenkins plugins
+RUN jenkins-plugin-cli --plugins \
+    git \
+    workflow-aggregator \
+    docker-workflow \
+    docker-plugin \
+    nodejs \
+    credentials-binding \
+    pipeline-stage-view \
+    blueocean \
+    configuration-as-code
 
-echo "Installing Node.js..."
-curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
-yum install -y nodejs
+USER jenkins
+EOF
 
-echo "Retrieving Jenkins password from Secrets Manager..."
-JENKINS_PASSWORD=$(aws secretsmanager get-secret-value --secret-id ${secret_name} --region ${aws_region} --query SecretString --output text)
+# Run Jenkins container with custom image
+echo "Starting Jenkins container..."
+sudo docker run --name jenkins --restart=on-failure --detach \
+  --network jenkins \
+  --env DOCKER_HOST=tcp://docker:2376 \
+  --env DOCKER_CERT_PATH=/certs/client \
+  --env DOCKER_TLS_VERIFY=1 \
+  --publish 8080:8080 \
+  --publish 50000:50000 \
+  --volume jenkins-data:/var/jenkins_home \
+  --volume jenkins-docker-certs:/certs/client:ro \
+  jenkins-with-docker
 
-echo "Configuring Jenkins..."
-mkdir -p /var/lib/jenkins/init.groovy.d
-cat > /var/lib/jenkins/init.groovy.d/basic-security.groovy << GROOVYEOF
-#!groovy
-import jenkins.model.*
-import hudson.security.*
-import jenkins.security.s2m.AdminWhitelistRule
-
-def instance = Jenkins.getInstance()
-
-def hudsonRealm = new HudsonPrivateSecurityRealm(false)
-hudsonRealm.createAccount("admin", "$JENKINS_PASSWORD")
-instance.setSecurityRealm(hudsonRealm)
-
-def strategy = new FullControlOnceLoggedInAuthorizationStrategy()
-strategy.setAllowAnonymousRead(false)
-instance.setAuthorizationStrategy(strategy)
-instance.save()
-
-Jenkins.instance.getInjector().getInstance(AdminWhitelistRule.class).setMasterKillSwitch(false)
-GROOVYEOF
-
-echo "Starting Jenkins service..."
-systemctl start jenkins
-systemctl enable jenkins
-
+# Wait for Jenkins to start
 echo "Waiting for Jenkins to start..."
-sleep 60
+for i in $(seq 1 30); do
+  if curl -s http://localhost:8080 > /dev/null; then
+    echo "Jenkins is up!"
+    break
+  fi
+  echo "Attempt $i/30 - waiting 10s..."
+  sleep 10
+done
 
-systemctl status jenkins
+# Print initial admin password
+echo "Waiting for initial admin password to be generated..."
+sleep 30
+echo "==================== JENKINS ADMIN PASSWORD ===================="
+sudo docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword || echo "Password not yet available - check manually later"
+echo "================================================================"
 
-echo "Installing additional tools..."
-yum install -y git
+echo "==================== SETUP SUMMARY ===================="
+echo "Jenkins running in Docker with Docker CLI installed"
+echo "Docker version: $(docker --version)"
+echo "======================================================="
+echo "Jenkins setup completed at $(date)"
 
-echo "Jenkins setup completed at $(date)!"
+PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
+echo "Jenkins accessible at: http://$PUBLIC_IP:8080"
+echo ""
+echo "Get initial admin password:"
+echo "  sudo docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword"

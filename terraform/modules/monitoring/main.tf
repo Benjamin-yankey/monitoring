@@ -177,10 +177,6 @@ resource "aws_cloudtrail" "main" {
     }
   }
 
-  lifecycle {
-    prevent_destroy = true
-  }
-
   tags = {
     Name = "${var.project_name}-${var.environment}-cloudtrail"
   }

@@ -24,29 +24,37 @@ sudo docker run --name jenkins-docker --rm --detach \
   --publish 2376:2376 \
   docker:dind --storage-driver overlay2
 
+# Create volumes to ensure they exist
+sudo docker volume create jenkins-data || true
+sudo docker volume create jenkins-docker-certs || true
+
 # Build custom Jenkins image with Docker CLI
 echo "Building custom Jenkins image with Docker CLI..."
 sudo docker build -t jenkins-with-docker - <<'EOF'
 FROM jenkins/jenkins:2.541.2-jdk21
 USER root
 
-# Install Docker CLI
+# Install Docker CLI and Git
 RUN apt-get update && \
-    apt-get install -y docker.io && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get install -y docker.io git ca-certificates curl gnupg lsb-release && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Ensure cache directory exists with proper permissions
+RUN mkdir -p /var/jenkins_home/caches && \
+    chown jenkins:jenkins /var/jenkins_home/caches
 
 # Install Jenkins plugins
 RUN jenkins-plugin-cli --plugins \
-    git \
-    workflow-aggregator \
-    docker-workflow \
-    docker-plugin \
-    nodejs \
-    credentials-binding \
-    pipeline-stage-view \
-    blueocean \
-    configuration-as-code
+    git \
+    workflow-aggregator \
+    docker-workflow \
+    docker-plugin \
+    nodejs \
+    credentials-binding \
+    pipeline-stage-view \
+    blueocean \
+    configuration-as-code
 
 USER jenkins
 EOF

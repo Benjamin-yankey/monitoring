@@ -1,0 +1,72 @@
+# Terraform
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.*
+tfplan
+.terraformrc
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.tfvars
+.tfvars.json
+*.tfvars
+*.tfvars.json
+
+# Sensitive files
+*.pem
+*.key
+*.pub
+.env
+.env.local
+.env.*.local
+terraform.tfvars.secret
+terraform.tfvars.secure
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.iml
+
+# Node
+node_modules/
+npm-debug.log
+npm-debug.log.*
+yarn-error.log
+.npm
+.eslintcache
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Build
+dist/
+build/
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jenkins
+.jenkins/
+jenkins_home/
+
+# Docker
+docker-compose.override.yml
+.docker/
+
+# Monitoring
+evidence/
+screenshots/

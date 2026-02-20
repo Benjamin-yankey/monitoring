@@ -80,19 +80,9 @@ output "cloudtrail_bucket_name" {
   value       = module.monitoring.cloudtrail_bucket_name
 }
 
-output "cloudtrail_name" {
-  description = "CloudTrail name"
-  value       = module.monitoring.cloudtrail_name
-}
-
 output "guardduty_detector_id" {
   description = "GuardDuty detector ID"
   value       = module.monitoring.guardduty_detector_id
-}
-
-output "cloudtrail_log_group" {
-  description = "CloudTrail CloudWatch log group"
-  value       = module.monitoring.cloudtrail_log_group
 }
 
 output "guardduty_findings_log_group" {

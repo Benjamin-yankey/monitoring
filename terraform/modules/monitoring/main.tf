@@ -158,39 +158,7 @@ resource "aws_s3_bucket_policy" "cloudtrail_logs" {
   ]
 }
 
-# CloudTrail
-resource "aws_cloudtrail" "main" {
-  name                          = "${var.project_name}-${var.environment}-trail"
-  s3_bucket_name                = aws_s3_bucket.cloudtrail_logs.id
-  include_global_service_events = true
-  is_multi_region_trail         = true
-  enable_log_file_validation    = true
-  depends_on                    = [aws_s3_bucket_policy.cloudtrail_logs]
 
-  event_selector {
-    read_write_type           = "All"
-    include_management_events = true
-
-    data_resource {
-      type   = "AWS::S3::Object"
-      values = ["arn:aws:s3:::"]
-    }
-  }
-
-  tags = {
-    Name = "${var.project_name}-${var.environment}-cloudtrail"
-  }
-}
-
-# CloudTrail Logs to CloudWatch
-resource "aws_cloudwatch_log_group" "cloudtrail" {
-  name              = "/aws/cloudtrail/${var.project_name}-${var.environment}"
-  retention_in_days = 90
-
-  tags = {
-    Name = "${var.project_name}-${var.environment}-cloudtrail-logs"
-  }
-}
 
 # GuardDuty
 data "aws_guardduty_detector" "existing" {

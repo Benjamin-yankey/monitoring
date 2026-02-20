@@ -48,19 +48,9 @@ output "cloudtrail_bucket_name" {
   value       = aws_s3_bucket.cloudtrail_logs.id
 }
 
-output "cloudtrail_name" {
-  description = "CloudTrail name"
-  value       = aws_cloudtrail.main.name
-}
-
 output "guardduty_detector_id" {
   description = "GuardDuty detector ID"
   value       = local.detector_id
-}
-
-output "cloudtrail_log_group" {
-  description = "CloudTrail CloudWatch log group"
-  value       = aws_cloudwatch_log_group.cloudtrail.name
 }
 
 output "guardduty_findings_log_group" {
